@@ -2,6 +2,7 @@ const express = require('express');
 const dotenv = require('dotenv');
 const morgan = require('morgan');
 const colors = require('colors');
+const errorHandler = require('./middleware/error')
 const connectDB = require('./config/db');
 
 // Load env vars
@@ -26,10 +27,11 @@ if (process.env.NODE_ENV === 'development') {
 // Mount routers
 app.use('/api/v1/bootcamps', bootcamps);
 
-app.get('/skuska', (req, res) => {
+/* app.get('/skuska', (req, res) => {
   res.send('Hello from express')
-})
+}) */
 
+app.use(errorHandler)
 const PORT = process.env.PORT || 5001;
 
 const server = app.listen(
