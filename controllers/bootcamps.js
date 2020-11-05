@@ -10,20 +10,72 @@ const Bootcamp = require("../models/Bootcamp");
 exports.getBootcamps = async (req, res, next) => {
   try {
     let query;
-    let queryStr = JSON.stringify(req.query);
+
+    // Copy req.query
+    const reqQuery = {...req.query}
+
+    // Fields to exclude
+    const removeFields = ['select', "sort", "page", "limit"];
+
+    // Loop over remove fields and delte them from reQuery
+    removeFields.forEach(param => delete reqQuery[param]);
+
+    // Create query string
+    let queryStr = JSON.stringify(reqQuery);
+
+    // Create operators
     queryStr = queryStr.replace(
       /\b(gt|gte|lt|lte|in)\b/g,
       (match) => `$${match}`
     );
-    console.log(queryStr);
 
-    query = Bootcamp.find(JSON.parse(queryStr));
+    // Finding resource
+    query = Bootcamp.find(JSON.parse(queryStr)).populate('courses');
 
+    // Select field
+    if(req.query.select) {
+      const fields = req.query.select.split(',').join(' ');
+      query = query.select(fields)
+    }
+
+    // Sort
+    if(req.query.sort) {
+      const sortBy = req.query.sort.split(',').join(' ')
+      query = query.sort(sortBy);
+    } else {
+      query = query.sort('-createdAt')
+    }
+
+    // Pagination
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const startIndex = (page - 1) * limit;
+    const endIndex = page * limit;
+    const total = await Bootcamp.countDocuments();
+    query = query.skip(startIndex).limit(limit);
+
+    // Executing query
     const bootcamps = await query;
+
+    // Pagination result
+    const pagination = {};
+    if(endIndex < total) {
+        pagination.next= {
+          page: page + 1,
+          limit
+        }
+    }
+
+    if (startIndex > 0) {
+      pagination.prev = {
+        page: page -1,
+        limit
+      }
+    }
 
     res
       .status(200)
-      .json({ success: true, count: bootcamps.length, data: bootcamps });
+      .json({ success: true, count: bootcamps.length, pagination, data: bootcamps });
   } catch (err) {
     next(err);
   }
@@ -92,7 +144,7 @@ exports.updateBootcamp = async (req, res, next) => {
 // @access    Private
 exports.deleteBootcamp = async (req, res, next) => {
   try {
-    const bootcamp = await Bootcamp.findByIdAndDelete(req.params.id);
+    const bootcamp = await Bootcamp.findById(req.params.id);
 
     if (!bootcamp) {
       next(
@@ -100,6 +152,7 @@ exports.deleteBootcamp = async (req, res, next) => {
       );
     }
 
+    bootcamp.remove();
     res.status(200).json({ success: true, data: {} });
   } catch (err) {
     next(err);
